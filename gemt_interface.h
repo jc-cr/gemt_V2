@@ -1,13 +1,16 @@
 #ifndef gemt_interface_h
 #define gemt_interface_h
 
-
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Fonts/Org_01.h>
 #include <Adafruit_SSD1306.h>
 #include <EncoderButton.h>
 #include "Arduino.h"
+
+#define displayRowLimit 8;
+#define displayColLimit 21;
+
 
 
 //========================================================================
@@ -30,29 +33,15 @@ enum oledDisplayPins
 };
 
 //========================================================================
-// Menu Definitions
+// Menu Functions
 //========================================================================
 
-// Init array of pointers for menus
-  const char* mainMenu[] = 
+// Menu screen template
+typedef struct Menu
   {
-    "Setup (run once)",
-    "9G Servo Test",
-    "ESR Test",
-    "nRF24 Test",
-    "L298N Test",
-    "Ultrasonic Sensor Test"
-  };
-
-  // Submenu for servo
-  // Note: Submenus should have back to return to previos menu
-  // TODO: Find better way of incorporating menu heirchy
-  const char* servoMenu[] = 
-  {
-    "Manual Operation Test",
-    "Automatic Operation Test",
-    "Back"
-  };
+    unsigned int choice;
+    const char * menuTextPtr;
+  } Menu;
 
 //========================================================================
 // Initializers
@@ -128,18 +117,6 @@ EncoderButton eb1(pinA, pinB, pinSW);
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x81, 0x91, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
 };
 
-// Selection cases
-enum {noSelection = 100}; // Default value
-unsigned int selection;
-
-typedef void (*Menu_Processing_Function_Pointer)(void);
-struct Menu_Option
-  {
-    unsigned int choice;
-    const char * menuTextPtr;
-    //Menu_Processing_Function_Pointer p_processing_function;
-  };
-
 //========================================================================
 // Encoder Handlers
 //========================================================================
@@ -149,9 +126,9 @@ struct Menu_Option
 void onEb1Clicked(EncoderButton& eb) 
 {
   // Debugging
-  Serial.println("Button pressed!"); 
-  selection = abs(eb.position()); 
-  Serial.println(selection);
+  //Serial.println("Button pressed!"); 
+  //selection = abs(eb.position()); 
+  //display.println(selection);
 }
 
 // A function to handle the 'encoder' event
@@ -164,99 +141,14 @@ void onEb1Encoder(EncoderButton& eb)
     eb.resetPosition(eb.position() + 1);
   }
 
+  /*
   // Debugging
   Serial.print("eb1 incremented by: ");
   Serial.println(eb.increment());
   Serial.print("eb1 position is: ");
   Serial.println(eb.position());
+  */
 }
-
-//========================================================================
-// OLED Functions
-//========================================================================
-
-// Bootup fucnction for display
-void GEMT_displayInit(void) 
-{ 
-  if(!display.begin(SSD1306_SWITCHCAPVCC, screenAddress)) {
-    Serial.println(F("SSD1306 allocation failed"));
-    for(;;); // Don't proceed, loop forever
-  }
-    
-  //Link the event(s) to your function
-  eb1.setClickHandler(onEb1Clicked);
-  eb1.setEncoderHandler(onEb1Encoder);
-
-  
-  // Display logo for 2 sec
-  display.clearDisplay();
-  display.drawBitmap(0, 0, logo_bmp, screenWidth, screenHeight - 5, WHITE); // -5, bc getting some weird stuff at bottom of screen
-  display.display();
-  delay(5000);
-  
-  display.clearDisplay();  
-  display.display();
-}
-
-static const Menu_Option main_menu[] =
-{
-  {0, "Motor Driver"},
-  {1, "UltraSonic Sensor"},
-  {2, "Capacitor"},
-  {3, "9G Micro Servo"},
-  {4, "nRF24L01"},
-};
-
-static const size_t mainMenu_length =
-        sizeof(main_menu) / sizeof(main_menu[0]);
-
-
-unsigned int GEMT_mainMenu (void)
-{ 
-  size_t eb_state = abs(eb1.position());
-  selection = noSelection;
-  eb1.update();  
-
-  display.clearDisplay();
-  display.setTextSize(1); 
-  display.setTextColor(SSD1306_WHITE);
-  display.setCursor(0, 0);
-  display.setTextColor(SSD1306_WHITE, SSD1306_BLACK); 
-
-  // Print header
-  display.println("Select module test:");
-
-  // Prints all lines from menu, may need to add second page if too much text
-  for (size_t i = 0; i < mainMenu_length; ++i) 
-  {
-    // Highlight line if user is hovering over it
-    // Line 0 not clickable 
-    if (eb_state == (i+1))
-    {
-      display.setTextColor(SSD1306_BLACK, SSD1306_WHITE); // Draw 'inverse' text
-    }
-    else 
-    {
-      display.setTextColor(SSD1306_WHITE, SSD1306_BLACK); 
-    }
-
-    display.println(main_menu[i].menuTextPtr);
-  
-  }
-
-  // Return to top of list if encoder pos goes past last choice
-  // In future could update to transition to a second page
-  if (eb_state > (mainMenu_length - 1))
-  {
-    eb1.resetPosition(1); 
-  }
- 
-  display.display();
-
-  return selection; // return default if nothing selection, otherwise returns value of selction
-}
-
-
 
 //========================================================================
 // Helper functions
@@ -268,12 +160,11 @@ void printHline(char lineChar)
   
   for (int i = 0; i < 72; ++i)
   {
-    Serial.print(lineChar);
+    display.print(lineChar);
   }
 
-  Serial.println();
+  display.println();
 }
-
 
 // Function to read user serial input
 // Reads int > 0
@@ -336,11 +227,31 @@ char getSerialInput_char(void)
   }
 */
 
-
-
 //========================================================================
 // Screen Display functions
 //========================================================================
+
+
+void displayDebug(Menu menu[], size_t menuLength)
+{
+  char buffer[50]; // init buffer of 50 bytes to hold expected string size
+
+  // Setup
+  display.clearDisplay();
+  display.setCursor(0, 0);
+  display.setTextColor(SSD1306_WHITE, SSD1306_BLACK);
+  
+  for (size_t i = 0; i < menuLength; ++i)
+  {
+    sprintf(buffer, "%d. %s", menu[i].choice, menu[i].menuTextPtr);
+    display.println(buffer);
+  }
+  
+  display.display();
+}
+
+
+/*
 
 // Function to get user menu selection from serial monitor input
 // menuName - Name for the desired menu (Main, Sub, Servo, etc.)
@@ -353,18 +264,18 @@ unsigned short int menuSelection(String menuName, const char* menuOptions[], siz
 
   printHline('*');
   
-  Serial.println(menuName);
+  display.println(menuName);
 
   // Assign item number to menuOption. Starts at 1.
   for (size_t i = 1; i <= menuArraySize; ++i)
   {    
     sprintf(buffer, "%d. %s", i, menuOptions[i-1]);
-    Serial.println(buffer);
+    display.println(buffer);
   }
 
   printHline('*');
 
-  Serial.println("Type item number of desired test: \n"); 
+  display.println("Type item number of desired test: \n"); 
   printHline('*');
 
   selection = getSerialInput_int();
@@ -375,11 +286,12 @@ unsigned short int menuSelection(String menuName, const char* menuOptions[], siz
   {
     selection = getSerialInput_int();
   }
-    
+
+  display.display();
+  delay(2000);  
   // Return user selection input
   return selection; 
 }
-
 
 // Displays the instructions to a test (pins to connect to, etc.)
 // bool return determines if test will proceed or go back to previous screen
@@ -389,14 +301,14 @@ bool infoScreen (String infoMsg)
   unsigned short int selection;
   
   printHline('-');
-  Serial.println("Test Info Screen: ");
-  Serial.println(infoMsg);
+  display.println("Test Info Screen: ");
+  display.println(infoMsg);
   printHline('-');
   
-  Serial.println("1. OK");
-  Serial.println("2. BACK");
+  display.println("1. OK");
+  display.println("2. BACK");
   printHline('-');
-  Serial.println("Type item number of desired action:");
+  display.println("Type item number of desired action:");
   printHline('-');
 
   selection = getSerialInput_int();
@@ -404,8 +316,8 @@ bool infoScreen (String infoMsg)
   // Loop until we get correct input
   while (selection != 1 && selection != 2)
   {
-    Serial.print(selection); Serial.print(" is an invalid input! \n");
-    Serial.println("Please try enter 1 or 2");
+    display.print(selection); display.print(" is an invalid input! \n");
+    display.println("Please try enter 1 or 2");
     selection = getSerialInput_int();
   }
 
@@ -423,8 +335,83 @@ bool infoScreen (String infoMsg)
   return proceed;
 }
 
+*/
 
 
+//========================================================================
+// OLED Functions
+//========================================================================
 
+// Bootup fucnction for display
+void startInterface(void) 
+{ 
+  if(!display.begin(SSD1306_SWITCHCAPVCC, screenAddress)) {
+    display.println(F("SSD1306 allocation failed"));
+    for(;;); // Don't proceed, loop forever
+  }
+    
+  //Link the event(s) to your function
+  eb1.setClickHandler(onEb1Clicked);
+  eb1.setEncoderHandler(onEb1Encoder);
+
+  
+  // Display logo for 2 sec
+  display.clearDisplay();
+  display.drawBitmap(0, 0, logo_bmp, screenWidth, screenHeight - 5, WHITE); // -5, bc getting some weird stuff at bottom of screen
+  display.display();
+  delay(5000);
+  
+  display.clearDisplay();  
+  display.display();
+}
+
+/*
+// OG GEMT Main menu
+// Highlights option when encoder is postioned on item
+// Encouder push selects that item
+unsigned int GEMT_mainMenu (void)
+{ 
+  size_t eb_state = abs(eb1.position());
+  selection = noSelection;
+  eb1.update();  
+
+  display.clearDisplay();
+  display.setTextSize(1); 
+  display.setTextColor(SSD1306_WHITE);
+  display.setCursor(0, 0);
+  display.setTextColor(SSD1306_WHITE, SSD1306_BLACK); 
+
+  // Print header
+  display.println("Select module test:");
+
+  // Prints all lines from menu, may need to add second page if too much text
+  for (size_t i = 0; i < mainMenu_length; ++i) 
+  {
+    // Highlight line if user is hovering over it
+    // Line 0 not clickable 
+    if (eb_state == (i+1))
+    {
+      display.setTextColor(SSD1306_BLACK, SSD1306_WHITE); // Draw 'inverse' text
+    }
+    else 
+    {
+      display.setTextColor(SSD1306_WHITE, SSD1306_BLACK); 
+    }
+
+    display.println(main_menu[i].menuTextPtr);  
+  }
+
+  // Return to top of list if encoder pos goes past last choice
+  // In future could update to transition to a second page
+  if (eb_state > (mainMenu_length - 1))
+  {
+    eb1.resetPosition(1); 
+  }
+ 
+  display.display();
+
+  return selection; // return default if nothing selection, otherwise returns value of selction
+}
+*/
 
 #endif 
