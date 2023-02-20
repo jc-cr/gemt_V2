@@ -8,20 +8,21 @@
 #include <EncoderButton.h>
 #include "Arduino.h"
 
+//========================================================================
+// Global Definitions
+//========================================================================
+
 #define displayRowLimit 8;
 #define displayColLimit 21;
 
-
-
-//========================================================================
-// Pin Definitions
-//========================================================================
+unsigned short int ebState = 0;
+unsigned short int currentScrollLimit = 0;
 
 enum encoderSWPins 
 {
-  pinA = 8,
-  pinB = 9,
-  pinSW = 10
+  pinA = 19 , // CLK
+  pinB = 2, // DT
+  pinSW = 8 // SW
 };
 
 enum oledDisplayPins
@@ -29,19 +30,24 @@ enum oledDisplayPins
   screenWidth = 128,
   screenHeight = 64,
   screenAddress = 0x3C, // i2c Address
-  screenReset = -1 // -1 since sharing Arduino reset pin
+  screenReset = -1      // -1 since sharing Arduino reset pin
 };
 
 //========================================================================
 // Menu Functions
 //========================================================================
 
+// Code base on: https://stackoverflow.com/questions/51328435/best-way-to-create-a-console-menu-c
+typedef void (*Menu_Processing_Function_Pointer)(void);
 // Menu screen template
 typedef struct Menu
   {
     unsigned int choice;
-    const char * menuTextPtr;
+    const char* menuTextPtr;
+    Menu_Processing_Function_Pointer p_processing_function;
   } Menu;
+
+// TODO: Add a method to pass length of user menus from main to this header
 
 //========================================================================
 // Initializers
@@ -121,35 +127,44 @@ EncoderButton eb1(pinA, pinB, pinSW);
 // Encoder Handlers
 //========================================================================
 
+  
 // On click, the global selection varuiabel gets updated with
 // value of where it was selcted 
-void onEb1Clicked(EncoderButton& eb) 
+void onEb1Clicked(EncoderButton& eb)
 {
   // Debugging
-  //Serial.println("Button pressed!"); 
+  Serial.println("Button pressed!"); 
   //selection = abs(eb.position()); 
-  //display.println(selection);
+  //Serial.println(selection);
 }
 
 // A function to handle the 'encoder' event
 void onEb1Encoder(EncoderButton& eb) 
 {
-  // compensate for random spikes
-  unsigned int encoder_state = abs(eb.position());
-  if(eb.increment() > 5)
+  // Filter latge spikes
+  if(eb.increment() > 4)
   {
-    eb.resetPosition(eb.position() + 1);
+    eb.resetPosition(eb.position()); // Reset back to startin pos
   }
 
-  /*
+  // Reset if encoder goes past active menu limit
+  // 
+  if (abs(eb.position()) >+ currentScrollLimit)
+  {
+    eb.resetPosition(0);
+  }
+
+  ebState = abs(eb.position());
+
   // Debugging
-  Serial.print("eb1 incremented by: ");
-  Serial.println(eb.increment());
+  /*
   Serial.print("eb1 position is: ");
   Serial.println(eb.position());
+  Serial.print("eb1 State is: ");
+  Serial.println(ebState);  
   */
 }
-
+ 
 //========================================================================
 // Helper functions
 //========================================================================
@@ -231,18 +246,57 @@ char getSerialInput_char(void)
 // Screen Display functions
 //========================================================================
 
+// Bootup fucnction for display
+void startInterface(void) 
+{ 
+  if(!display.begin(SSD1306_SWITCHCAPVCC, screenAddress)) {
+    display.println(F("SSD1306 allocation failed"));
+    for(;;); // Don't proceed, loop forever
+  }
+
+  //Link the event(s) to your function
+  eb1.setClickHandler(onEb1Clicked);
+  eb1.setEncoderHandler(onEb1Encoder);
+
+  // Display logo for 2 sec
+  display.clearDisplay();
+  display.drawBitmap(0, 0, logo_bmp, screenWidth, screenHeight - 5, WHITE); // -5, bc getting some weird stuff at bottom of screen
+  display.display();
+  delay(2000);
+  
+  display.clearDisplay();  
+  display.display();
+}
 
 void displayDebug(Menu menu[], size_t menuLength)
 {
   char buffer[50]; // init buffer of 50 bytes to hold expected string size
+  currentScrollLimit = (menuLength - 1);
+  
+  // selection = noSelection;
+  eb1.update();
 
   // Setup
   display.clearDisplay();
   display.setCursor(0, 0);
   display.setTextColor(SSD1306_WHITE, SSD1306_BLACK);
   
-  for (size_t i = 0; i < menuLength; ++i)
+  // Printing header line
+  display.println("Select module test:");
+  for (size_t i = 0; i <= (menuLength - 1); ++i)
   {
+    // Highlight line if user is hovering over it
+    // Line 0 not clickable 
+    if (ebState == i)
+    {
+      display.setTextColor(SSD1306_BLACK, SSD1306_WHITE); // Draw 'inverse' text
+    }
+    else 
+    {
+      display.setTextColor(SSD1306_WHITE, SSD1306_BLACK); 
+    }
+    
+    // Print out in int and Text format
     sprintf(buffer, "%d. %s", menu[i].choice, menu[i].menuTextPtr);
     display.println(buffer);
   }
@@ -250,8 +304,53 @@ void displayDebug(Menu menu[], size_t menuLength)
   display.display();
 }
 
+void displayMenu(Menu menu[], size_t menuLength)
+{
+  char buffer[50]; // init buffer of 50 bytes to hold expected string size
+  currentScrollLimit = menuLength;
+  
+  // selection = noSelection;
+  eb1.update();
+
+  // Setup
+  display.clearDisplay();
+  display.setCursor(0, 0);
+  display.setTextColor(SSD1306_WHITE, SSD1306_BLACK);
+  
+  // Printing header line
+  display.println("Select module test:");
+  for (size_t i = 0; i <= (menuLength - 1); ++i)
+  {
+    // Highlight line if user is hovering over it
+    // Line 0 not clickable 
+    if (ebState == i)
+    {
+      display.setTextColor(SSD1306_BLACK, SSD1306_WHITE); // Draw 'inverse' text
+    }
+    else 
+    {
+      display.setTextColor(SSD1306_WHITE, SSD1306_BLACK); 
+    }
+    
+    // Print out in int and Text format
+    sprintf(buffer, "%d. %s", menu[i].choice, menu[i].menuTextPtr);
+    display.println(buffer);
+  }
+  
+  display.display();
+}
+
+// 
+void menuUpdate(Menu menu[], size_t menuLength, Menu* menuPtr, size_t* menuLengthPtr)
+{
+  menuPtr = menu;
+  menuLengthPtr = menuLength;
+}
 
 /*
+//========================================================================
+// OG
+//========================================================================
 
 // Function to get user menu selection from serial monitor input
 // menuName - Name for the desired menu (Main, Sub, Servo, etc.)
@@ -337,33 +436,6 @@ bool infoScreen (String infoMsg)
 
 */
 
-
-//========================================================================
-// OLED Functions
-//========================================================================
-
-// Bootup fucnction for display
-void startInterface(void) 
-{ 
-  if(!display.begin(SSD1306_SWITCHCAPVCC, screenAddress)) {
-    display.println(F("SSD1306 allocation failed"));
-    for(;;); // Don't proceed, loop forever
-  }
-    
-  //Link the event(s) to your function
-  eb1.setClickHandler(onEb1Clicked);
-  eb1.setEncoderHandler(onEb1Encoder);
-
-  
-  // Display logo for 2 sec
-  display.clearDisplay();
-  display.drawBitmap(0, 0, logo_bmp, screenWidth, screenHeight - 5, WHITE); // -5, bc getting some weird stuff at bottom of screen
-  display.display();
-  delay(5000);
-  
-  display.clearDisplay();  
-  display.display();
-}
 
 /*
 // OG GEMT Main menu
