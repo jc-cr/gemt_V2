@@ -33,19 +33,12 @@ enum oledDisplayPins
   screenReset = -1      // -1 since sharing Arduino reset pin
 };
 
-//========================================================================
-// Menu Functions
-//========================================================================
+// DEBUG
 
-// Code base on: https://stackoverflow.com/questions/51328435/best-way-to-create-a-console-menu-c
-typedef void (*Menu_Processing_Function_Pointer)(void);
-// Menu screen template
-typedef struct Menu
-  {
-    unsigned int choice;
-    const char* menuTextPtr;
-    Menu_Processing_Function_Pointer p_processing_function;
-  } Menu;
+void Foo(void)
+{
+  NULL;
+} 
 
 // TODO: Add a method to pass length of user menus from main to this header
 
@@ -181,66 +174,19 @@ void printHline(char lineChar)
   display.println();
 }
 
-// Function to read user serial input
-// Reads int > 0
-unsigned short int getSerialInput_int(void)
+//========================================================================
+// Menu Functions
+//========================================================================
+
+// Menu screen template
+typedef struct Menu
 {
-  bool dataAvailable = 0;
-  unsigned short int input;
-
-  // Loop until we recieve data
-  while(dataAvailable == 0)
-  {
-    // Read input if data is available
-    if (Serial.available() > 0) 
-    {
-      
-      input = Serial.parseInt();
-      dataAvailable = 1;
-
-      /*
-      // Use this to ignore new line or carrige readings readings
-      if (input == 0)
-      {
-        dataAvailable = 0;
-      }
-      else
-      {
-        dataAvailable = 1; // exit loop with selection int
-      }   
-      */
-    }
-  }
-  return input;  
-}
-
-// Function to read user serial input
-// Reads single char
-char getSerialInput_char(void)
-{
-  char input = 0;
-  bool dataAvailable = 0;
-
-  while (dataAvailable == 0)
-  {
-    if (Serial.available() > 0) {
-         dataAvailable = 1;
-        input = Serial.read();      
-    }
-  }
-  return input; 
-}
-
-/* Might use later
- // Test for valid input
-  for (size_t i = 0; i < sizeof(expectedInputs); ++i)
-  {
-    // Note: Char can be logiacally compares because it's stored as 8 bit int value
-    // Usally matches ASCII code, so char a='a' == char a= 97 
-    bool notMatch = (input == expectedInputs[i]);
-
-  }
-*/
+  unsigned int choice;
+  const char* menuTextPtr;
+  void (*mselectionAction)(...); 
+  // Method styling in C https://www.cs.uaf.edu/courses/cs301/2014-fall/notes/methods/index.html
+  // Ellipses ref https://www.lemoda.net/c/function-pointer-ellipsis/
+} Menu;
 
 //========================================================================
 // Screen Display functions
@@ -346,6 +292,8 @@ void menuUpdate(Menu menu[], size_t menuLength, Menu* menuPtr, size_t* menuLengt
   menuPtr = menu;
   menuLengthPtr = menuLength;
 }
+
+
 
 /*
 //========================================================================
