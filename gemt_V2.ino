@@ -5,11 +5,7 @@
 // Menu Declarations
 //========================================================================
 
-
-// FIXME: Figure out how to make these calls
-
 // Main Menu Options
-
 static Menu mainMenu[] =
 {
   {1, "9G Servo Test"}, // Action - Update Menu, Servo
@@ -25,33 +21,35 @@ static Menu servoMenu[] =
 {
   {1, "Manual Operation Test"},
   {2,  "Automatic Operation Test"},
-  {3, "Back"}, // Update Menu, Main
+  {3, "Back"}, // Action - Update Menu, Main
 };
 size_t servoMenuLen = sizeof(servoMenu) / sizeof(servoMenu[0]);
 
-// Setup a pointer to change which menu is displayed
+// Setup a pointer to change which menu is displayed. Start in Main
 Menu* currentMenuPtr = mainMenu;
 size_t* currentMenuLengthPtr = mainMenuLen;
 
-
-
-// Reason for doing like this is that we have some interdependencies of variables
-// So need to update afterwards
-void menuFunctionInit(void)
+// Reason for doing like this is that we have some interdependencies of variables in above structs
+// So we need to call the functions after those have been initilized
+void initMenuActions(void)
 {
-  mainMenu[0].menuUpdateMethod = menuUpdate;
-  mainMenu[0].menuUpdateMethod(servoMenu, servoMenuLen, currentMenuPtr, currentMenuLengthPtr);
+  // Action - Update Menu, Servo
+  mainMenu[0].selectionAction = menuUpdate;
+  mainMenu[0].selectionAction(servoMenu, servoMenuLen, currentMenuPtr, currentMenuLengthPtr);
 
-  // TESTING
-  mainMenu[1].menuUpdateMethod = Foo;
-  mainMenu[1].menuUpdateMethod();
+  // Example for other calls
+  mainMenu[1].selectionAction = Foo;
+  mainMenu[1].selectionAction();
 
   //...
 
+
+  //...
+  
+  // Action - Update Menu, Main
+  servoMenu[2].selectionAction = menuUpdate;
+  servoMenu[2].selectionAction(mainMenu, mainMenuLen, currentMenuPtr, currentMenuLengthPtr);
 }
-
-
-
 
 //========================================================================
 // Main
@@ -62,8 +60,7 @@ void setup(void)
   delay(500);
   Serial.begin(115200);
   startInterface();
-  menuFunctionInit();
-
+  initMenuActions();
 }
 
 int main(void) 
@@ -77,7 +74,6 @@ int main(void)
   {
     //displayDebug(mainMenu, mainMenuLen);
     displayMenu(currentMenuPtr, currentMenuLengthPtr);
-
     delay(3);
   }
   

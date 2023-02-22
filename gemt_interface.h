@@ -8,6 +8,14 @@
 #include <EncoderButton.h>
 #include "Arduino.h"
 
+/*========================================================================
+ TODO:
+  - Add a method to pass length of user menus from main to this header
+  - Setup encoder click selections
+  - Integrate hardware tests
+  -  ...
+========================================================================*/
+
 //========================================================================
 // Global Definitions
 //========================================================================
@@ -34,13 +42,10 @@ enum oledDisplayPins
 };
 
 // DEBUG
-
 void Foo(void)
 {
   NULL;
 } 
-
-// TODO: Add a method to pass length of user menus from main to this header
 
 //========================================================================
 // Initializers
@@ -119,7 +124,6 @@ EncoderButton eb1(pinA, pinB, pinSW);
 //========================================================================
 // Encoder Handlers
 //========================================================================
-
   
 // On click, the global selection varuiabel gets updated with
 // value of where it was selcted 
@@ -183,7 +187,7 @@ typedef struct Menu
 {
   unsigned int choice;
   const char* menuTextPtr;
-  void (*mselectionAction)(...); 
+  void (*selectionAction)(...); // Function pointer to menu selection action
   // Method styling in C https://www.cs.uaf.edu/courses/cs301/2014-fall/notes/methods/index.html
   // Ellipses ref https://www.lemoda.net/c/function-pointer-ellipsis/
 } Menu;
@@ -214,6 +218,7 @@ void startInterface(void)
   display.display();
 }
 
+// Debugging function for testing menu settings
 void displayDebug(Menu menu[], size_t menuLength)
 {
   char buffer[50]; // init buffer of 50 bytes to hold expected string size
@@ -250,12 +255,12 @@ void displayDebug(Menu menu[], size_t menuLength)
   display.display();
 }
 
+// 
 void displayMenu(Menu menu[], size_t menuLength)
 {
   char buffer[50]; // init buffer of 50 bytes to hold expected string size
   currentScrollLimit = menuLength;
   
-  // selection = noSelection;
   eb1.update();
 
   // Setup
@@ -265,6 +270,7 @@ void displayMenu(Menu menu[], size_t menuLength)
   
   // Printing header line
   display.println("Select module test:");
+  // Display all current menu options
   for (size_t i = 0; i <= (menuLength - 1); ++i)
   {
     // Highlight line if user is hovering over it
@@ -286,18 +292,16 @@ void displayMenu(Menu menu[], size_t menuLength)
   display.display();
 }
 
-// 
+// Changes menu pointer to point to selected menu screen
 void menuUpdate(Menu menu[], size_t menuLength, Menu* menuPtr, size_t* menuLengthPtr)
 {
   menuPtr = menu;
   menuLengthPtr = menuLength;
 }
 
-
-
 /*
 //========================================================================
-// OG
+// OG Code for Ref
 //========================================================================
 
 // Function to get user menu selection from serial monitor input
