@@ -6,27 +6,27 @@
 //========================================================================
 
 // Main Menu Options
-static Menu mainMenu[] =
+static Menu MainMenu[] =
 {
-  {1, "9G Servo Test"}, // Action - Update Menu, Servo
-  {2, "ESR Test"},  // Action - Test
-  {3, "nRF24 Test"}, // Action - Test
-  {4, "L298N Test"}, // Action - Test
-  {5, "Ultrasonic Test"}, // Action - Test
+  {1, "9G Servo Test", menuUpdate}, // Action - Update Menu, Servo
+  {2, "ESR Test", Foo},  // Action - Test
+  {3, "nRF24 Test", Foo}, // Action - Test
+  {4, "L298N Test", Foo}, // Action - Test
+  {5, "Ultrasonic Test", Foo}, // Action - Test
 };
-size_t mainMenuLen = sizeof(mainMenu) / sizeof(mainMenu[0]);
+size_t mainMenuLen = sizeof(MainMenu) / sizeof(MainMenu[0]);
 
 // Submenu for servo
-static Menu servoMenu[] =
+static Menu ServoMenu[] =
 {
   {1, "Manual Operation Test"},
   {2,  "Automatic Operation Test"},
   {3, "Back"}, // Action - Update Menu, Main
 };
-size_t servoMenuLen = sizeof(servoMenu) / sizeof(servoMenu[0]);
+size_t servoMenuLen = sizeof(ServoMenu) / sizeof(ServoMenu[0]);
 
 // Setup a pointer to change which menu is displayed. Start in Main
-Menu* currentMenuPtr = mainMenu;
+Menu* CurrentMenuPtr = MainMenu;
 size_t* currentMenuLengthPtr = mainMenuLen;
 
 // Reason for doing like this is that we have some interdependencies of variables in above structs
@@ -34,12 +34,12 @@ size_t* currentMenuLengthPtr = mainMenuLen;
 void initMenuActions(void)
 {
   // Action - Update Menu, Servo
-  mainMenu[0].selectionAction = menuUpdate;
-  mainMenu[0].selectionAction(servoMenu, servoMenuLen, currentMenuPtr, currentMenuLengthPtr);
+
+  MainMenu[0].setParams(ServoMenu, servoMenuLen, CurrentMenuPtr, currentMenuLengthPtr);
 
   // Example for other calls
-  mainMenu[1].selectionAction = Foo;
-  mainMenu[1].selectionAction();
+  MainMenu[1].selectionAction = Foo;
+  MainMenu[1].selectionAction();
 
   //...
 
@@ -47,8 +47,8 @@ void initMenuActions(void)
   //...
   
   // Action - Update Menu, Main
-  servoMenu[2].selectionAction = menuUpdate;
-  servoMenu[2].selectionAction(mainMenu, mainMenuLen, currentMenuPtr, currentMenuLengthPtr);
+  ServoMenu[2].selectionAction = menuUpdate;
+  ServoMenu[2].selectionAction(MainMenu, mainMenuLen, CurrentMenuPtr, currentMenuLengthPtr);
 }
 
 //========================================================================
@@ -72,8 +72,8 @@ int main(void)
   
   while(true)
   {
-    //displayDebug(mainMenu, mainMenuLen);
-    displayMenu(currentMenuPtr, currentMenuLengthPtr);
+    //displayDebug(MainMenu, MainMenuLen);
+    displayMenu(CurrentMenuPtr, currentMenuLengthPtr);
     delay(3);
   }
   

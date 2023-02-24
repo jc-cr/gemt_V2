@@ -23,8 +23,9 @@
 #define displayRowLimit 8;
 #define displayColLimit 21;
 
-unsigned short int ebState = 0;
-unsigned short int currentScrollLimit = 0;
+unsigned short int ebState = 0; // Current state (Position) of the encoder 
+unsigned short int currentScrollLimit = 0; // Updated within displayMenu function
+bool clicked = false; // Updated on encoder "click" case, must reset after use 
 
 enum encoderSWPins 
 {
@@ -125,41 +126,33 @@ EncoderButton eb1(pinA, pinB, pinSW);
 // Encoder Handlers
 //========================================================================
   
-// On click, the global selection varuiabel gets updated with
-// value of where it was selcted 
+// On click, the global selection variable gets updated with
+// value of where it was selcted
 void onEb1Clicked(EncoderButton& eb)
 {
-  // Debugging
-  Serial.println("Button pressed!"); 
-  //selection = abs(eb.position()); 
+  // Set selection value to current state
+  clicked = true;
+  
+  // DEBUG - Delete in actual proram as Serial printing slows down interrupts
   //Serial.println(selection);
 }
 
 // A function to handle the 'encoder' event
 void onEb1Encoder(EncoderButton& eb) 
 {
-  // Filter latge spikes
+  // Filter latge spikes from noise
   if(eb.increment() > 4)
   {
     eb.resetPosition(eb.position()); // Reset back to startin pos
   }
 
-  // Reset if encoder goes past active menu limit
-  // 
-  if (abs(eb.position()) >+ currentScrollLimit)
+  // Reset if encoder goes past active Menu limit
+  if (abs(eb.position()) >= currentScrollLimit)
   {
     eb.resetPosition(0);
   }
 
   ebState = abs(eb.position());
-
-  // Debugging
-  /*
-  Serial.print("eb1 position is: ");
-  Serial.println(eb.position());
-  Serial.print("eb1 State is: ");
-  Serial.println(ebState);  
-  */
 }
  
 //========================================================================
@@ -182,15 +175,39 @@ void printHline(char lineChar)
 // Menu Functions
 //========================================================================
 
+
 // Menu screen template
 typedef struct Menu
 {
   unsigned int choice;
   const char* menuTextPtr;
-  void (*selectionAction)(...); // Function pointer to menu selection action
+  void (*setSelectionAction)(void); // Function pointer to Menu selection action
+  void setSelectionParams(...);
+  void runSelectionAction(...);
   // Method styling in C https://www.cs.uaf.edu/courses/cs301/2014-fall/notes/methods/index.html
   // Ellipses ref https://www.lemoda.net/c/function-pointer-ellipsis/
 } Menu;
+
+
+
+
+void setSelectionParams(Menu menu, ...)
+{
+  va_list args;
+  va_start(args, menu);
+  menu.setSelectionParams = std::bind(menu.setSelectionAction, args);
+  va_end(args);
+}
+
+void runSelectionAction(Menu Menu, ...)
+{
+  va_list argp;
+	va_start(argp, Menu);
+  passParameters(Menu.setSelectionAction, argp);
+  va_end(argp);
+}
+
+
 
 //========================================================================
 // Screen Display functions
@@ -218,85 +235,60 @@ void startInterface(void)
   display.display();
 }
 
-// Debugging function for testing menu settings
-void displayDebug(Menu menu[], size_t menuLength)
-{
-  char buffer[50]; // init buffer of 50 bytes to hold expected string size
-  currentScrollLimit = (menuLength - 1);
-  
-  // selection = noSelection;
-  eb1.update();
-
-  // Setup
-  display.clearDisplay();
-  display.setCursor(0, 0);
-  display.setTextColor(SSD1306_WHITE, SSD1306_BLACK);
-  
-  // Printing header line
-  display.println("Select module test:");
-  for (size_t i = 0; i <= (menuLength - 1); ++i)
-  {
-    // Highlight line if user is hovering over it
-    // Line 0 not clickable 
-    if (ebState == i)
-    {
-      display.setTextColor(SSD1306_BLACK, SSD1306_WHITE); // Draw 'inverse' text
-    }
-    else 
-    {
-      display.setTextColor(SSD1306_WHITE, SSD1306_BLACK); 
-    }
-    
-    // Print out in int and Text format
-    sprintf(buffer, "%d. %s", menu[i].choice, menu[i].menuTextPtr);
-    display.println(buffer);
-  }
-  
-  display.display();
-}
-
 // 
-void displayMenu(Menu menu[], size_t menuLength)
+void displayMenu(Menu CurrentMenu[], size_t menuLength)
 {
-  char buffer[50]; // init buffer of 50 bytes to hold expected string size
-  currentScrollLimit = menuLength;
-  
-  eb1.update();
-
-  // Setup
-  display.clearDisplay();
-  display.setCursor(0, 0);
-  display.setTextColor(SSD1306_WHITE, SSD1306_BLACK);
-  
-  // Printing header line
-  display.println("Select module test:");
-  // Display all current menu options
-  for (size_t i = 0; i <= (menuLength - 1); ++i)
+  // Execute function if clicked...
+  // So either go to a submenu or run a module test
+  // After module test the display function should still be in same state (pretty cool)
+  if (clicked)
   {
-    // Highlight line if user is hovering over it
-    // Line 0 not clickable 
-    if (ebState == i)
+    clicked = 0; // Reset before proceeding to function
+
+    CurrentMenu[ebState].setSelectionAction(CurrentMenu[ebState].params);
+  }
+
+  //Display the previous Menu state
+  else
+  {
+    char buffer[50]; // init buffer of 50 bytes to hold expected string size
+    currentScrollLimit = menuLength;
+
+    // Setup
+    eb1.update();
+    display.clearDisplay();
+    display.setCursor(0, 0);
+    display.setTextColor(SSD1306_WHITE, SSD1306_BLACK);
+    
+    // Printing header line
+    display.println("Select module test:");
+    // Display all current Menu options
+    for (size_t i = 0; i <= (menuLength - 1); ++i)
     {
-      display.setTextColor(SSD1306_BLACK, SSD1306_WHITE); // Draw 'inverse' text
-    }
-    else 
-    {
-      display.setTextColor(SSD1306_WHITE, SSD1306_BLACK); 
+      // Highlight line if user is hovering over it
+      if (ebState == i)
+      {
+        display.setTextColor(SSD1306_BLACK, SSD1306_WHITE); // Draw 'inverse' text
+      }
+      else 
+      {
+        display.setTextColor(SSD1306_WHITE, SSD1306_BLACK); 
+      }
+      
+      // Print out in int and Text format
+      sprintf(buffer, "%d. %s", CurrentMenu[i].choice, CurrentMenu[i].menuTextPtr);
+      display.println(buffer);
     }
     
-    // Print out in int and Text format
-    sprintf(buffer, "%d. %s", menu[i].choice, menu[i].menuTextPtr);
-    display.println(buffer);
+    display.display();
   }
-  
-  display.display();
 }
 
-// Changes menu pointer to point to selected menu screen
-void menuUpdate(Menu menu[], size_t menuLength, Menu* menuPtr, size_t* menuLengthPtr)
+// Changes Menu pointer to point to selected Menu screen
+void menuUpdate(Menu NewMenu[], size_t newMenuLength, Menu* menuPtr, size_t* menuLengthPtr)
 {
-  menuPtr = menu;
-  menuLengthPtr = menuLength;
+  menuPtr = NewMenu;
+  menuLengthPtr = newMenuLength;
 }
 
 /*
