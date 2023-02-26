@@ -1,3 +1,4 @@
+#include "HardwareSerial.h"
 #ifndef gemt_interface_h
 #define gemt_interface_h
 
@@ -41,12 +42,6 @@ enum oledDisplayPins
   screenAddress = 0x3C, // i2c Address
   screenReset = -1      // -1 since sharing Arduino reset pin
 };
-
-// DEBUG
-void Foo(void)
-{
-  NULL;
-} 
 
 //========================================================================
 // Initializers
@@ -162,35 +157,91 @@ void onEb1Encoder(EncoderButton& eb)
 // Function to print horizontal line of a char
 void printHline(char lineChar)
 {
-  
   for (int i = 0; i < 72; ++i)
   {
-    display.print(lineChar);
+    Serial.print(lineChar);
   }
 
-  display.println();
+  Serial.println();
 }
 
+void displayPrep(void)
+{
+    display.clearDisplay();
+    display.setCursor(0, 0);
+    display.setTextColor(SSD1306_WHITE, SSD1306_BLACK);
+}
 //========================================================================
 // Menu Functions
 //========================================================================
 
+/*
+  // Setup linked list to create function paramter lists 
+  // https://www.learn-c.org/en/Linked_lists
+  // https://codereview.stackexchange.com/questions/237794/generic-linked-list-implemented-in-pure-c
+  typedef struct ArgList {
+      void* passedArg;
+      struct ArgList *next;
+  } ArgList;
 
+  void push(ArgList * head, void* nextArg) 
+  {
+      ArgList * current = head;
+      while (current->next != NULL) 
+      {
+          current = current->next;
+      }
+
+      
+      current->next = (ArgList *) malloc(sizeof(ArgList));
+      current->next->passedArg = nextArg;
+      current->next->next = NULL;
+  }
+*/
 // Menu screen template
 typedef struct Menu
 {
   unsigned int choice;
   const char* menuTextPtr;
-  void (*setSelectionAction)(void); // Function pointer to Menu selection action
-  void setSelectionParams(...);
-  void runSelectionAction(...);
+  void (*selectionAction)(...); // Function pointer to Menu selection action
+  //ArgList *head;
+
+  //void setSelectionParams(...);
+  //void runSelectionAction(...);
   // Method styling in C https://www.cs.uaf.edu/courses/cs301/2014-fall/notes/methods/index.html
   // Ellipses ref https://www.lemoda.net/c/function-pointer-ellipsis/
 } Menu;
 
+/*
+void setMenuActionParams(Menu Menu[], short unsigned int numberOfArgs, ...)
+{
+  va_list inputArg;
+  va_start(inputArg, numberOfArgs);
+  
+  Menu.head = (ArgList *) malloc(sizeof(ArgList));
+  
+  // Memory allocaiton failed
+  if (Menu.head == NULL) 
+  {
+    Serial.println("malloc fail");
+    return;
+  }
+
+  Menu.head->passedArg = inputArg;  
+
+  // We start at 1 since we've already assigned the head
+  for (int i = 1; i < numberArg; i++)
+  {
+    push(Menu.head, inputArg[i]);
+  }  
+
+  va_end(args);
+}
+
+*/
 
 
-
+/*
 void setSelectionParams(Menu menu, ...)
 {
   va_list args;
@@ -206,8 +257,7 @@ void runSelectionAction(Menu Menu, ...)
   passParameters(Menu.setSelectionAction, argp);
   va_end(argp);
 }
-
-
+*/
 
 //========================================================================
 // Screen Display functions
@@ -241,11 +291,12 @@ void displayMenu(Menu CurrentMenu[], size_t menuLength)
   // Execute function if clicked...
   // So either go to a submenu or run a module test
   // After module test the display function should still be in same state (pretty cool)
+
   if (clicked)
   {
     clicked = 0; // Reset before proceeding to function
-
-    CurrentMenu[ebState].setSelectionAction(CurrentMenu[ebState].params);
+    CurrentMenu[ebState].selectionAction();
+    //CurrentMenu[ebState].setSelectionAction(CurrentMenu[ebState].params);
   }
 
   //Display the previous Menu state
@@ -285,11 +336,95 @@ void displayMenu(Menu CurrentMenu[], size_t menuLength)
 }
 
 // Changes Menu pointer to point to selected Menu screen
-void menuUpdate(Menu NewMenu[], size_t newMenuLength, Menu* menuPtr, size_t* menuLengthPtr)
+void menuUpdate(Menu NewMenu[], size_t newMenuLength, Menu* OldMenuPtr, size_t* oldMenuLengthPtr)
 {
-  menuPtr = NewMenu;
-  menuLengthPtr = newMenuLength;
+  OldMenuPtr = NewMenu;
+  oldMenuLengthPtr = newMenuLength;
 }
+
+//========================================================================
+// Debugging
+//========================================================================
+
+void dummyInfo(void)
+{
+  currentScrollLimit = 2;
+
+  while (clicked == 0)
+  {
+    displayPrep();
+
+    display.println("Test Information:");
+    display.println();
+    display.println("This is a demo of an info screen for a test.");
+    display.println();
+    
+
+    if (ebState = 0)
+    {
+      display.setTextColor(SSD1306_BLACK, SSD1306_WHITE);
+    }
+    display.print("OK"); 
+
+    display.setTextColor(SSD1306_WHITE, SSD1306_BLACK); 
+    display.print("  |  "); 
+    display.setTextColor(SSD1306_WHITE, SSD1306_BLACK); 
+
+    if (ebState = 2)
+    {
+      display.setTextColor(SSD1306_BLACK, SSD1306_WHITE);
+    }
+    display.print("Back");
+    display.setTextColor(SSD1306_WHITE, SSD1306_BLACK);
+    
+    display.display();
+
+    delay(3);
+  }
+
+  // When cliked we exit and do nothing
+  clicked = 0;
+}
+
+// Demo of a test, no way to transition out 
+void dummyTest(void)
+{
+  displayPrep();
+
+  dummyInfo();
+
+  while(clicked == 0)
+  {
+    displayPrep();
+    display.println("This is a demo of a Test screen");
+    display.display();
+
+    delay(3);
+  }
+
+  clicked = 0;
+}
+
+// Demo of a submenu, no way to transition to real menuss... just for demo
+void dummyMenu(void)
+{
+  // Make a Dumb Menu
+  static Menu DumbMenu[] =
+  {
+    {1, "Test 1", dummyTest},
+    {2,  "Test 2", dummyTest},
+    {3, "Dumb Menu", dummyMenu}, // Action - Update Menu, Main
+  };
+  size_t dumbMenuLength = sizeof(DumbMenu) / sizeof(DumbMenu[0]);
+
+  while(true)
+  {
+    displayMenu(DumbMenu, dumbMenuLength);
+
+    delay(3);
+  }
+}
+
 
 /*
 //========================================================================
