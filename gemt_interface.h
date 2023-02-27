@@ -26,7 +26,7 @@
 
 unsigned short int ebState = 0; // Current state (Position) of the encoder 
 unsigned short int currentScrollLimit = 0; // Updated within displayMenu function
-bool clicked = false; // Updated on encoder "click" case, must reset after use 
+static bool clicked = false; // Updated on encoder "click" case, must reset after use 
 
 enum encoderSWPins 
 {
@@ -129,7 +129,7 @@ void onEb1Clicked(EncoderButton& eb)
   clicked = true;
   
   // DEBUG - Delete in actual proram as Serial printing slows down interrupts
-  //Serial.println(selection);
+  //Serial.println("CLICKED!");
 }
 
 // A function to handle the 'encoder' event
@@ -148,6 +148,7 @@ void onEb1Encoder(EncoderButton& eb)
   }
 
   ebState = abs(eb.position());
+  //Serial.println(ebState);
 }
  
 //========================================================================
@@ -165,14 +166,22 @@ void printHline(char lineChar)
   Serial.println();
 }
 
+// Function to quicly call actions required to prep screen for printing
 void displayPrep(void)
 {
     display.clearDisplay();
     display.setCursor(0, 0);
     display.setTextColor(SSD1306_WHITE, SSD1306_BLACK);
 }
+
+// Create function for clarity
+void resetClicked(void)
+{
+  clicked = 0;
+}
+
 //========================================================================
-// Menu Functions
+// Menu Functions (WIP)
 //========================================================================
 
 /*
@@ -237,7 +246,6 @@ void setMenuActionParams(Menu Menu[], short unsigned int numberOfArgs, ...)
 
   va_end(args);
 }
-
 */
 
 
@@ -294,7 +302,7 @@ void displayMenu(Menu CurrentMenu[], size_t menuLength)
 
   if (clicked)
   {
-    clicked = 0; // Reset before proceeding to function
+    resetClicked(); // Reset before proceeding to function
     CurrentMenu[ebState].selectionAction();
     //CurrentMenu[ebState].setSelectionAction(CurrentMenu[ebState].params);
   }
@@ -307,9 +315,7 @@ void displayMenu(Menu CurrentMenu[], size_t menuLength)
 
     // Setup
     eb1.update();
-    display.clearDisplay();
-    display.setCursor(0, 0);
-    display.setTextColor(SSD1306_WHITE, SSD1306_BLACK);
+    displayPrep();
     
     // Printing header line
     display.println("Select module test:");
@@ -346,66 +352,73 @@ void menuUpdate(Menu NewMenu[], size_t newMenuLength, Menu* OldMenuPtr, size_t* 
 // Debugging
 //========================================================================
 
-void dummyInfo(void)
+static const char *confirmOptions[3] = {"OK", "|", "Back"};
+static const size_t confirmOptionLen = sizeof(confirmOptions) / sizeof(confirmOptions[0]);
+
+// Reusable function for printing the confirmOptions above
+void printConfirmOptions(void)
 {
-  currentScrollLimit = 2;
-
-  while (clicked == 0)
+  for (size_t i = 0; i < confirmOptionLen; i++)
   {
-    displayPrep();
-
-    display.println("Test Information:");
-    display.println();
-    display.println("This is a demo of an info screen for a test.");
-    display.println();
-    
-
-    if (ebState = 0)
-    {
-      display.setTextColor(SSD1306_BLACK, SSD1306_WHITE);
-    }
-    display.print("OK"); 
-
-    display.setTextColor(SSD1306_WHITE, SSD1306_BLACK); 
-    display.print("  |  "); 
-    display.setTextColor(SSD1306_WHITE, SSD1306_BLACK); 
-
-    if (ebState = 2)
-    {
-      display.setTextColor(SSD1306_BLACK, SSD1306_WHITE);
-    }
-    display.print("Back");
-    display.setTextColor(SSD1306_WHITE, SSD1306_BLACK);
-    
-    display.display();
-
-    delay(3);
+     // Highlight line if user is hovering over it
+     // Don't highlight the bar though
+      if (ebState == i && i != 1)
+      {
+        display.setTextColor(SSD1306_BLACK, SSD1306_WHITE); // Draw 'inverse' text
+      }
+      else 
+      {
+        display.setTextColor(SSD1306_WHITE, SSD1306_BLACK); 
+      }
+       
+       display.print(confirmOptions[i]);
   }
-
-  // When cliked we exit and do nothing
-  clicked = 0;
 }
 
-// Demo of a test, no way to transition out 
+void dummyInfo(void)
+{
+  currentScrollLimit = 3;
+  eb1.update();
+
+  displayPrep();
+  display.println("Test Information:");
+  display.println();
+  display.println("This is a demo of an info screen"); display.println("for a test.");
+  display.println();
+
+  printConfirmOptions();
+
+  display.display();
+}
+
+// Demo of test screen functionality
 void dummyTest(void)
 {
-  displayPrep();
-
-  dummyInfo();
+  while(clicked == 0)
+  { 
+    dummyInfo();
+    delay(3);
+  }
+  resetClicked();
 
   while(clicked == 0)
   {
-    displayPrep();
-    display.println("This is a demo of a Test screen");
-    display.display();
+    eb1.update();
 
+    displayPrep();
+    display.println("This is a screen for the actual test");
+    display.println();
+
+    printConfirmOptions();
+
+    display.display();
     delay(3);
   }
-
-  clicked = 0;
+  resetClicked();
 }
 
-// Demo of a submenu, no way to transition to real menuss... just for demo
+// Demo of a submenu functionality
+// For implementation would prefer to pass a pointer in main
 void dummyMenu(void)
 {
   // Make a Dumb Menu
@@ -421,148 +434,15 @@ void dummyMenu(void)
   {
     displayMenu(DumbMenu, dumbMenuLength);
 
+    // Make sure clicked status is passed on
+    if (clicked)
+    {
+      displayMenu(DumbMenu, dumbMenuLength);
+      break;
+    }
     delay(3);
   }
+  resetClicked();
 }
-
-
-/*
-//========================================================================
-// OG Code for Ref
-//========================================================================
-
-// Function to get user menu selection from serial monitor input
-// menuName - Name for the desired menu (Main, Sub, Servo, etc.)
-// menuOptions - List of options in your testing suite
-// menuArraySize - number of elements in menuOptions
-unsigned short int menuSelection(String menuName, const char* menuOptions[], size_t menuArraySize)
-{
-  unsigned short int selection;
-  char buffer[50]; // init buffer of 50 bytes to hold expected string size
-
-  printHline('*');
-  
-  display.println(menuName);
-
-  // Assign item number to menuOption. Starts at 1.
-  for (size_t i = 1; i <= menuArraySize; ++i)
-  {    
-    sprintf(buffer, "%d. %s", i, menuOptions[i-1]);
-    display.println(buffer);
-  }
-
-  printHline('*');
-
-  display.println("Type item number of desired test: \n"); 
-  printHline('*');
-
-  selection = getSerialInput_int();
-  
-  // Auto catch any invalid menu selection parameters
-  // From getSerialInput_int() we assume 0 is not an option
-  while (selection > menuArraySize || selection <= 0)
-  {
-    selection = getSerialInput_int();
-  }
-
-  display.display();
-  delay(2000);  
-  // Return user selection input
-  return selection; 
-}
-
-// Displays the instructions to a test (pins to connect to, etc.)
-// bool return determines if test will proceed or go back to previous screen
-bool infoScreen (String infoMsg)
-{
-  bool proceed = 0;
-  unsigned short int selection;
-  
-  printHline('-');
-  display.println("Test Info Screen: ");
-  display.println(infoMsg);
-  printHline('-');
-  
-  display.println("1. OK");
-  display.println("2. BACK");
-  printHline('-');
-  display.println("Type item number of desired action:");
-  printHline('-');
-
-  selection = getSerialInput_int();
-  
-  // Loop until we get correct input
-  while (selection != 1 && selection != 2)
-  {
-    display.print(selection); display.print(" is an invalid input! \n");
-    display.println("Please try enter 1 or 2");
-    selection = getSerialInput_int();
-  }
-
-  // Return param to continue to next screen
-  if (selection == 1)
-  {
-    proceed = true;
-  }
-  // Return param to return to previous screen
-  else if (selection == 2)
-  {
-    proceed = false;
-  }
-
-  return proceed;
-}
-
-*/
-
-
-/*
-// OG GEMT Main menu
-// Highlights option when encoder is postioned on item
-// Encouder push selects that item
-unsigned int GEMT_mainMenu (void)
-{ 
-  size_t eb_state = abs(eb1.position());
-  selection = noSelection;
-  eb1.update();  
-
-  display.clearDisplay();
-  display.setTextSize(1); 
-  display.setTextColor(SSD1306_WHITE);
-  display.setCursor(0, 0);
-  display.setTextColor(SSD1306_WHITE, SSD1306_BLACK); 
-
-  // Print header
-  display.println("Select module test:");
-
-  // Prints all lines from menu, may need to add second page if too much text
-  for (size_t i = 0; i < mainMenu_length; ++i) 
-  {
-    // Highlight line if user is hovering over it
-    // Line 0 not clickable 
-    if (eb_state == (i+1))
-    {
-      display.setTextColor(SSD1306_BLACK, SSD1306_WHITE); // Draw 'inverse' text
-    }
-    else 
-    {
-      display.setTextColor(SSD1306_WHITE, SSD1306_BLACK); 
-    }
-
-    display.println(main_menu[i].menuTextPtr);  
-  }
-
-  // Return to top of list if encoder pos goes past last choice
-  // In future could update to transition to a second page
-  if (eb_state > (mainMenu_length - 1))
-  {
-    eb1.resetPosition(1); 
-  }
- 
-  display.display();
-
-  return selection; // return default if nothing selection, otherwise returns value of selction
-}
-*/
 
 #endif 
