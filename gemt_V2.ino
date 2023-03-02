@@ -8,7 +8,7 @@
 // Main Menu Options
 static Menu MainMenu[] =
 {
-  {1, "9G Servo Test", dummyMenu}, // Action - Update Menu, Servo
+  {1, "9G Servo Test", menuUpdate, 4}, // Action - Update Menu, Servo
   {2, "ESR Test", dummyTest},  // Action - Test
   {3, "nRF24 Test", dummyTest}, // Action - Test
   {4, "L298N Test", dummyTest}, // Action - Test
@@ -38,6 +38,9 @@ void setup(void)
   delay(500);
   Serial.begin(115200);
   startInterface();
+
+  // Assign function parameters
+  setActionArgs(&MainMenu[0], ServoMenu, servoMenuLen, CurrentMenuPtr, currentMenuLengthPtr);
 }
 
 int main(void) 
