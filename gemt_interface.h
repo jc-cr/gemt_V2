@@ -1,17 +1,19 @@
-#include "HardwareSerial.h"
+
 #ifndef gemt_interface_h
 #define gemt_interface_h
-
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Fonts/Org_01.h>
 #include <Adafruit_SSD1306.h>
 #include <EncoderButton.h>
 #include "Arduino.h"
+#include "HardwareSerial.h"
 /*========================================================================
  TODO:
   - Integrate hardware tests
-  -  ...
+  -  Just hardcode menu into header file you dummy!
+  ... So define the menus here (A user can edit them here anyways)
+  ... Use same menu update system but now you can call at any point
 ========================================================================*/
 
 //========================================================================
@@ -23,13 +25,14 @@
 
 unsigned short int ebState = 0; // Current state (Position) of the encoder 
 unsigned short int currentScrollLimit = 0; // Updated within displayMenu function
+
 static bool clicked = false; // Updated on encoder "click" case, must reset after use 
 
 enum encoderSWPins 
 {
   pinA = 19 , // CLK
   pinB = 2, // DT
-  pinSW = 8 // SW
+  pinSW = 7 // SW
 };
 
 enum oledDisplayPins
@@ -181,119 +184,82 @@ void resetClicked(void)
 // Menu Functions (WIP)
 //========================================================================
 
-/* A linked list node:
-
-   Normally we would have to free since we use malloc()
-   But here we addign all the memory allocation before the program 
-   starts, so any memory errors would be caught from the onset.
-
-  Also our allocation are static, not dynamic, after they have been set.
-  When power is removed from our microcontorller, the memory will be freed.
-  https://stackoverflow.com/questions/57477689/what-happens-if-you-dont-free-allocated-memory-in-a-microcontroller
-*/
-// https://www.geeksforgeeks.org/generic-linked-list-in-c-2/
-typedef struct Node
-{
-    // Any data type can be stored in this node
-    void  *data;
-
-    // Pointer to next node, Null if at end of linked list
-    struct Node *next;
-} Node;
-
-// Append to the end of linked list
-static void appendArgs(Node* head, void *new_data)
-{ 
-  // First let's traverse the linked list and go to the end...
-
-  // Setup a Node pointer to iterate with
-  Node *current = head;
-
-  // Go to end of current list, 
-  // this works beacause last pointer of list will be NULL
-  while (current->next != NULL) {
-      current = current->next;
-  }
-
-  // Now setup a new node...
-
-  // Setup memory for new node
-  current->next = (Node*) malloc(sizeof(Node));
-
-  // Copy contents of new_data to newly allocated memory by 1 byte (uint8_t)
-  for (int i=0; i<sizeof(new_data); i++)
-  {
-      *(uint8_t *)(current->next->data + i) = *(uint8_t *)(new_data + i);
-  }
-  
-  current->next->next = NULL;
-}
+typedef void (*func)(void);
 
 // Menu screen template
 typedef struct Menu
 {
   unsigned short int choice;
   const char* menuTextPtr;
-  void (*selectionAction)(...); // Function pointer to Menu selection action
-  unsigned short int numberOfArgsForAction;
-  Node *firstArg; // Starts with Null
+  func selectionAction; // Function pointer to Menu selection action
+  // At the moment only takes void functions... 
+  // Still have not figured out how to set parameters in a general way
+
+  /* Possible CPP solution
+  // store the result of a call to std::bind
+  <void()> selectionAction = NULL;
+  //std::bind(print_num, 31337); // To init you would do
+  */
+
   // Method styling in C https://www.cs.uaf.edu/courses/cs301/2014-fall/notes/methods/index.html
   // Ellipses ref https://www.lemoda.net/c/function-pointer-ellipsis/
 } Menu;
 
-
-// Function to store arguments in a linked list within given struct
-// Ref: variable args in C https://ssjools.hopto.org/char/lang/valist
-void setActionArgs(Menu Menu[], ...)
+// Main Menu Options
+static Menu MainMenu[] =
 {
-  unsigned short int numOfArgs = Menu->numberOfArgsForAction;
-  va_list vargs;
-  va_start(vargs, Menu);
+  {1, "9G Servo Test"}, // Action - Update Menu, Servo
+  {2, "ESR Test"},  // Action - Test
+  {3, "nRF24 Test"}, // Action - Test
+  {4, "L298N Test"}, // Action - Test
+  {5, "Ultrasonic Test"}, // Action - Test
+};
+size_t mainMenuLen = sizeof(MainMenu) / sizeof(MainMenu[0]);
 
-  for (int i = 0; i < numOfArgs; i++)
-  {
-    appendArgs(Menu->firstArg, vargs);
-  }
+// Submenu for servo
+static Menu ServoMenu[] =
+{
+  {1, "Manual Servo Test"},
+  {2,  "Auto Servo Test"},
+  {3, "Back"}, // Action - Update Menu, Main
+};
+size_t servoMenuLen = sizeof(ServoMenu) / sizeof(ServoMenu[0]);
 
-  va_end(vargs);
+// Setup a pointer to change which menu is displayed. Start in Main
+Menu* CurrentMenuPtr = MainMenu;
+size_t* currentMenuLenPtr = mainMenuLen;
+
+//========================================================================
+// Selection Action Functions
+//========================================================================
+
+void goToServoMenu(void)
+{
+  CurrentMenuPtr = ServoMenu;
+  currentMenuLenPtr = servoMenuLen;
+  
+  // Start at top of page
+  ebState = 0;
 }
 
-// Needed some way to pass all params for generic functions so we define generic vars
-// https://stackoverflow.com/questions/7798383/array-of-pointers-to-multiple-types-c
-void **args = malloc(4 * sizeof(void *)); // 4 for debugging... think max will be set to 5
-
-// Extract a menu items arguments and store in above args array
-static void extractArgs(Menu Menu[])
+void goToMainMenu(void)
 {
-  unsigned short int numOfArgs = Menu->numberOfArgsForAction;
-  
-  // Setup a Node pointer to iterate with
-  Node *current = Menu->firstArg;
-  
-  for (int i = 0; i < numOfArgs; i++)
-  {
-    args[i] = current->data;
-    current = current->next;
-  }
-}
-    
-void invokeSelection(Menu Menu[])
-{ 
-  unsigned short int numOfArgs = Menu->numberOfArgsForAction;
-  extractArgs(Menu);
+  CurrentMenuPtr = MainMenu;
+  currentMenuLenPtr = mainMenuLen; 
 
-  switch(numOfArgs)
-  {
-    case 4:
-    {
-      Menu->selectionAction(args[0], args[1], args[2], args[3]);
-    }
-    default:
-    {
-      Serial.println("ERROR: No argument number defined.");
-      return;
-    }
-  }
+  // Start at top of page
+  ebState = 0;
+}
+
+// Function to set selection action when button pressed
+// Currently only accepts void argument functions!
+void setSelectionActions(void)
+{
+  MainMenu[0].selectionAction = goToServoMenu;
+  //...
+
+  ServoMenu[2].selectionAction = goToMainMenu;
+  //...
 }
 
 //========================================================================
@@ -322,14 +288,16 @@ void startInterface(void)
   display.display();
 }
 
-// 
-void displayMenu(Menu CurrentMenu[], size_t menuLength)
+// Display driver code: Outputs current menu items line by-line,
+// Highlights and selects based on encoder-button readings
+void displayMenuDriver(Menu CurrentMenu[], size_t menuLength)
 {
   // Condition for executing users selections based on 'clicked' bool
   if (clicked)
   {
+    Serial.print("Entered displayMenu clicked case: ");
     resetClicked(); // Reset before proceeding to function
-    invokeSelection(&CurrentMenu[ebState]);
+    CurrentMenu[ebState].selectionAction();
   }
 
   //Display the previous Menu state
@@ -367,19 +335,7 @@ void displayMenu(Menu CurrentMenu[], size_t menuLength)
 }
 
 //========================================================================
-// Selection Action Functions
-//========================================================================
-
-// Changes Menu pointer to point to selected Menu screen
-void menuUpdate(Menu NewMenu[], size_t newMenuLength, Menu* OldMenuPtr, size_t* oldMenuLengthPtr)
-{
-
-  OldMenuPtr = NewMenu;
-  oldMenuLengthPtr = newMenuLength;
-}
-
-//========================================================================
-// Debugging
+// Functions for debugging
 //========================================================================
 
 static const char *confirmOptions[3] = {"OK", "|", "Back"};
@@ -462,12 +418,12 @@ void dummyMenu(void)
 
   while(true)
   {
-    displayMenu(DumbMenu, dumbMenuLength);
+    displayMenuDriver(DumbMenu, dumbMenuLength);
 
     // Make sure clicked status is passed on
     if (clicked)
     {
-      displayMenu(DumbMenu, dumbMenuLength);
+      displayMenuDriver(DumbMenu, dumbMenuLength);
       break;
     }
     delay(3);
@@ -475,4 +431,22 @@ void dummyMenu(void)
   resetClicked();
 }
 
+void debugAction(Menu Menu[])
+{
+  Serial.print("Arg 1: ");Serial.println(Menu->menuTextPtr);
+}
+
+//========================================================================
+// Stuff to implement later...
+//========================================================================
+
+/*
+// Changes Menu pointer to point to selected Menu screen
+void menuUpdate(Menu NewMenu[], size_t newMenuLength, Menu* OldMenuPtr, size_t* oldMenuLengthPtr)
+{
+  OldMenuPtr = NewMenu;
+  oldMenuLengthPtr = newMenuLength;
+}
+
+*/
 #endif 
