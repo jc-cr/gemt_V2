@@ -1,20 +1,20 @@
 
-#ifndef gemt_interface_h
-#define gemt_interface_h
+#ifndef GEMT_INTERFACE_H
+#define GEMT_INTERFACE_H
+#include "Arduino.h"
+
 #include <Wire.h>
 #include <Adafruit_GFX.h>
-#include <Fonts/Org_01.h>
 #include <Adafruit_SSD1306.h>
 #include <EncoderButton.h>
-#include "Arduino.h"
+#include <Fonts/Org_01.h>
 #include "HardwareSerial.h"
+
 /*========================================================================
  TODO:
   - Integrate hardware tests
-  -  Just hardcode menu into header file you dummy!
-  ... So define the menus here (A user can edit them here anyways)
-  ... Use same menu update system but now you can call at any point
 ========================================================================*/
+
 
 //========================================================================
 // Global Definitions
@@ -23,16 +23,26 @@
 #define displayRowLimit 8;
 #define displayColLimit 21;
 
-unsigned short int ebState = 0; // Current state (Position) of the encoder 
-unsigned short int currentScrollLimit = 0; // Updated within displayMenu function
+/* Use of volatile for variables that:
+    - Memormy mapped registers
+    - global varchanged by interrupt
+    - global var accessed by multithreading
+    https://barrgroup.com/embedded-systems/how-to/c-volatile-keyword
+*/
+volatile uint8_t ebState = 0; // Current state (Position) of the encoder. Max by uint8 is 255
+volatile bool clicked = false; // Updated on encoder "click" case, must reset after use 
 
-static bool clicked = false; // Updated on encoder "click" case, must reset after use 
+//========================================================================
+// Initializers
+//========================================================================
 
+// Note: If using jumper wires make sure pins are well spaced out.
+// rotary encoder is super noisy and registers false clicks among other issues
 enum encoderSWPins 
 {
   pinA = 19 , // CLK
   pinB = 2, // DT
-  pinSW = 7 // SW
+  pinSW = 38 // SW
 };
 
 enum oledDisplayPins
@@ -43,18 +53,63 @@ enum oledDisplayPins
   screenReset = -1      // -1 since sharing Arduino reset pin
 };
 
-//========================================================================
-// Initializers
-//========================================================================
-
 // Display init
 Adafruit_SSD1306 display(screenWidth, screenHeight, &Wire, screenReset);
 
 // EncoderSW init
 EncoderButton eb1(pinA, pinB, pinSW);
 
+//========================================================================
+// Menu Functions (WIP)
+//========================================================================
+
+typedef void (*func)(void);
+
+// Menu screen template
+typedef struct Menu
+{
+  unsigned short int choice;
+  const char* menuTextPtr;
+  func selectionAction; // Function pointer to Menu selection action
+  // At the moment only takes void functions... 
+  // Still have not figured out how to set parameters in a general way
+
+  /* Possible CPP solution
+  // store the result of a call to std::bind
+  <void()> selectionAction = NULL;
+  //std::bind(print_num, 31337); // To init you would do
+  */
+
+  // Method styling in C https://www.cs.uaf.edu/courses/cs301/2014-fall/notes/methods/index.html
+  // Ellipses ref https://www.lemoda.net/c/function-pointer-ellipsis/
+} Menu;
+
+// Main Menu Options
+Menu MainMenu[] =
+{
+  {1, "9G Servo Test"}, // Action - Update Menu, Servo
+  {2, "ESR Test"},  // Action - Test
+  {3, "nRF24 Test"}, // Action - Test
+  {4, "L298N Test"}, // Action - Test
+  {5, "Ultrasonic Test"}, // Action - Test
+};
+size_t mainMenuLen = sizeof(MainMenu) / sizeof(MainMenu[0]);
+
+// Submenu for servo
+Menu ServoMenu[] =
+{
+  {1, "Manual Servo Test"},
+  {2,  "Auto Servo Test"},
+  {3, "Back"}, // Action - Update Menu, Main
+};
+size_t servoMenuLen = sizeof(ServoMenu) / sizeof(ServoMenu[0]);
+
+// Setup a pointer to change which menu is displayed. Start in Main
+Menu* CurrentMenuPtr = MainMenu;
+size_t* currentMenuLenPtr = mainMenuLen;
+
 // Logo Bitmap Init
- const uint8_t  logo_bmp [] PROGMEM = 
+const uint8_t  logo_bmp [] PROGMEM = 
 { 
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
@@ -116,9 +171,8 @@ EncoderButton eb1(pinA, pinB, pinSW);
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x0b, 0x88, 0xc0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x81, 0x91, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
 };
-
 //========================================================================
-// Encoder Handlers
+// Encoder Handlers (Interrupt functions)
 //========================================================================
   
 // On click, the global selection variable gets updated with
@@ -129,7 +183,7 @@ void onEb1Clicked(EncoderButton& eb)
   clicked = true;
   
   // DEBUG - Delete in actual proram as Serial printing slows down interrupts
-  //Serial.println("CLICKED!");
+  Serial.println("CLICKED!");
 }
 
 // A function to handle the 'encoder' event
@@ -142,15 +196,19 @@ void onEb1Encoder(EncoderButton& eb)
   }
 
   // Reset if encoder goes past active Menu limit
-  if (abs(eb.position()) >= currentScrollLimit)
+  if (abs(eb.position()) >= currentMenuLenPtr)
   {
     eb.resetPosition(0);
   }
 
   ebState = abs(eb.position());
-  //Serial.println(ebState);
+
+  // DEBUG - Delete in actual proram as Serial printing slows down interrupts
+  Serial.println(ebState);
 }
- 
+
+
+
 //========================================================================
 // Helper functions
 //========================================================================
@@ -179,55 +237,6 @@ void resetClicked(void)
 {
   clicked = 0;
 }
-
-//========================================================================
-// Menu Functions (WIP)
-//========================================================================
-
-typedef void (*func)(void);
-
-// Menu screen template
-typedef struct Menu
-{
-  unsigned short int choice;
-  const char* menuTextPtr;
-  func selectionAction; // Function pointer to Menu selection action
-  // At the moment only takes void functions... 
-  // Still have not figured out how to set parameters in a general way
-
-  /* Possible CPP solution
-  // store the result of a call to std::bind
-  <void()> selectionAction = NULL;
-  //std::bind(print_num, 31337); // To init you would do
-  */
-
-  // Method styling in C https://www.cs.uaf.edu/courses/cs301/2014-fall/notes/methods/index.html
-  // Ellipses ref https://www.lemoda.net/c/function-pointer-ellipsis/
-} Menu;
-
-// Main Menu Options
-static Menu MainMenu[] =
-{
-  {1, "9G Servo Test"}, // Action - Update Menu, Servo
-  {2, "ESR Test"},  // Action - Test
-  {3, "nRF24 Test"}, // Action - Test
-  {4, "L298N Test"}, // Action - Test
-  {5, "Ultrasonic Test"}, // Action - Test
-};
-size_t mainMenuLen = sizeof(MainMenu) / sizeof(MainMenu[0]);
-
-// Submenu for servo
-static Menu ServoMenu[] =
-{
-  {1, "Manual Servo Test"},
-  {2,  "Auto Servo Test"},
-  {3, "Back"}, // Action - Update Menu, Main
-};
-size_t servoMenuLen = sizeof(ServoMenu) / sizeof(ServoMenu[0]);
-
-// Setup a pointer to change which menu is displayed. Start in Main
-Menu* CurrentMenuPtr = MainMenu;
-size_t* currentMenuLenPtr = mainMenuLen;
 
 //========================================================================
 // Selection Action Functions
@@ -278,6 +287,9 @@ void startInterface(void)
   eb1.setClickHandler(onEb1Clicked);
   eb1.setEncoderHandler(onEb1Encoder);
 
+  // Create mapping to selection action fuunctions
+  setSelectionActions();
+
   // Display logo for 2 sec
   display.clearDisplay();
   display.drawBitmap(0, 0, logo_bmp, screenWidth, screenHeight - 5, WHITE); // -5, bc getting some weird stuff at bottom of screen
@@ -290,21 +302,20 @@ void startInterface(void)
 
 // Display driver code: Outputs current menu items line by-line,
 // Highlights and selects based on encoder-button readings
-void displayMenuDriver(Menu CurrentMenu[], size_t menuLength)
+void displayMenuDriver(void)
 {
   // Condition for executing users selections based on 'clicked' bool
   if (clicked)
   {
     Serial.print("Entered displayMenu clicked case: ");
     resetClicked(); // Reset before proceeding to function
-    CurrentMenu[ebState].selectionAction();
+    CurrentMenuPtr[ebState].selectionAction();
   }
 
   //Display the previous Menu state
   else
   {
     char buffer[50]; // init buffer of 50 bytes to hold expected string size
-    currentScrollLimit = menuLength;
 
     // Setup
     eb1.update();
@@ -313,7 +324,7 @@ void displayMenuDriver(Menu CurrentMenu[], size_t menuLength)
     // Printing header line
     display.println("Select module test:");
     // Display all current Menu options
-    for (size_t i = 0; i <= (menuLength - 1); ++i)
+    for (size_t i = 0; i < (currentMenuLenPtr); ++i)
     {
       // Highlight line if user is hovering over it
       if (ebState == i)
@@ -326,7 +337,7 @@ void displayMenuDriver(Menu CurrentMenu[], size_t menuLength)
       }
       
       // Print out in int and Text format
-      sprintf(buffer, "%d. %s", CurrentMenu[i].choice, CurrentMenu[i].menuTextPtr);
+      sprintf(buffer, "%d. %s", CurrentMenuPtr[i].choice, CurrentMenuPtr[i].menuTextPtr);
       display.println(buffer);
     }
     
@@ -363,7 +374,6 @@ void printConfirmOptions(void)
 
 void dummyInfo(void)
 {
-  currentScrollLimit = 3;
   eb1.update();
 
   displayPrep();
@@ -403,38 +413,6 @@ void dummyTest(void)
   resetClicked();
 }
 
-// Demo of a submenu functionality
-// For implementation would prefer to pass a pointer in main
-void dummyMenu(void)
-{
-  // Make a Dumb Menu
-  static Menu DumbMenu[] =
-  {
-    {1, "Test 1", dummyTest},
-    {2,  "Test 2", dummyTest},
-    {3, "Dumb Menu", dummyMenu}, // Action - Update Menu, Main
-  };
-  size_t dumbMenuLength = sizeof(DumbMenu) / sizeof(DumbMenu[0]);
-
-  while(true)
-  {
-    displayMenuDriver(DumbMenu, dumbMenuLength);
-
-    // Make sure clicked status is passed on
-    if (clicked)
-    {
-      displayMenuDriver(DumbMenu, dumbMenuLength);
-      break;
-    }
-    delay(3);
-  }
-  resetClicked();
-}
-
-void debugAction(Menu Menu[])
-{
-  Serial.print("Arg 1: ");Serial.println(Menu->menuTextPtr);
-}
 
 //========================================================================
 // Stuff to implement later...

@@ -10,7 +10,6 @@ void setup(void)
   delay(500);
   Serial.begin(115200); // DEBUGGING
   startInterface();
-  setSelectionActions();
 }
 
 int main(void) 
@@ -21,8 +20,7 @@ int main(void)
 
   while(true)
   {
-    //displayDebug(MainMenu, MainMenuLen);
-    displayMenuDriver(CurrentMenuPtr, currentMenuLenPtr);
+    displayMenuDriver();
     delay(3);
   }
   
