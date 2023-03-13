@@ -2,7 +2,6 @@
 #ifndef GEMT_INTERFACE_H
 #define GEMT_INTERFACE_H
 #include "Arduino.h"
-
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
@@ -70,7 +69,6 @@ EncoderButton eb1(pinA, pinB, pinSW);
 //========================================================================
 
 typedef void (*func)(void);
-
 // Menu screen template
 typedef struct Menu
 {
@@ -177,6 +175,7 @@ const uint8_t  logo_bmp [] PROGMEM =
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x0b, 0x88, 0xc0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x81, 0x91, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
 };
+
 //========================================================================
 // Encoder Handlers (Interrupt functions)
 //========================================================================
@@ -255,6 +254,37 @@ void goToMainMenu(void)
   ebState = 0;
 }
 
+// Confirm options
+namespace
+{
+  const char *confirmOptions[3] = {"OK", "|", "Back"};
+  const size_t confirmOptionLen = sizeof(confirmOptions) / sizeof(confirmOptions[0]);
+}
+
+// Reusable function for printing the confirm options (ok and back)
+// To be included within Info screen and test result screen
+// Highlights either OK or Back. Must be included within a WHILE loop 
+void printConfirmOptions(void)
+{
+  for (size_t i = 0; i < confirmOptionLen; i++)
+  {
+     // Highlight line if user is hovering over it
+     // Don't highlight the bar though
+      if (ebState == i && i != 1)
+      {
+        display.setTextColor(SSD1306_BLACK, SSD1306_WHITE); // Draw 'inverse' text
+      }
+      else 
+      {
+        display.setTextColor(SSD1306_WHITE, SSD1306_BLACK); 
+      }
+       
+       display.print(confirmOptions[i]);
+  }
+}
+
+// Info screen with auto info determination based on "clickedItemNumber" and CurrentMenuPtr
+// Prints out pins to connect to for test
 void infoScreen(void)
 {
   eb1.update();
@@ -308,30 +338,6 @@ void setSelectionActions(void)
 
   ServoMenu[2].selectionAction = goToMainMenu;
   //...
-}
-
-
-static const char *confirmOptions[3] = {"OK", "|", "Back"};
-static const size_t confirmOptionLen = sizeof(confirmOptions) / sizeof(confirmOptions[0]);
-
-// Reusable function for printing the confirmOptions above
-void printConfirmOptions(void)
-{
-  for (size_t i = 0; i < confirmOptionLen; i++)
-  {
-     // Highlight line if user is hovering over it
-     // Don't highlight the bar though
-      if (ebState == i && i != 1)
-      {
-        display.setTextColor(SSD1306_BLACK, SSD1306_WHITE); // Draw 'inverse' text
-      }
-      else 
-      {
-        display.setTextColor(SSD1306_WHITE, SSD1306_BLACK); 
-      }
-       
-       display.print(confirmOptions[i]);
-  }
 }
 
 //========================================================================
