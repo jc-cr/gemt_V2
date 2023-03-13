@@ -12,9 +12,10 @@
 
 /*========================================================================
  TODO:
+  - Info screen
   - Integrate hardware tests
+  - Create seperate .h and .cpp   
 ========================================================================*/
-
 
 //========================================================================
 // Global Definitions
@@ -29,9 +30,14 @@
     - global var accessed by multithreading
     https://barrgroup.com/embedded-systems/how-to/c-volatile-keyword
 */
-volatile uint8_t ebState = 0; // Current state (Position) of the encoder. Max by uint8 is 255
-volatile bool clicked = false; // Updated on encoder "click" case, must reset after use 
 
+// Anon namespace better than static
+namespace
+{
+  volatile uint8_t ebState = 0; // Current state (Position) of the encoder. Max by uint8 is 255
+  volatile bool clicked = false; // Updated on encoder "click" case, must reset after use 
+  uint8_t clickedItemNumber = 0;
+}
 //========================================================================
 // Initializers
 //========================================================================
@@ -181,20 +187,22 @@ void onEb1Clicked(EncoderButton& eb)
 {
   // Set selection value to current state
   clicked = true;
-  
-  // DEBUG - Delete in actual proram as Serial printing slows down interrupts
-  Serial.println("CLICKED!");
+  clickedItemNumber = CurrentMenuPtr[ebState].choice;
+
+  // DEBUG - Delete in actua\l proram as Serial printing slows down interrupts
+  //Serial.println("CLICKED!");
 }
 
 // A function to handle the 'encoder' event
 void onEb1Encoder(EncoderButton& eb) 
 {
+  /*
   // Filter latge spikes from noise
   if(eb.increment() > 4)
   {
     eb.resetPosition(eb.position()); // Reset back to startin pos
   }
-
+  */
   // Reset if encoder goes past active Menu limit
   if (abs(eb.position()) >= currentMenuLenPtr)
   {
@@ -204,27 +212,14 @@ void onEb1Encoder(EncoderButton& eb)
   ebState = abs(eb.position());
 
   // DEBUG - Delete in actual proram as Serial printing slows down interrupts
-  Serial.println(ebState);
+  //Serial.println(ebState);
 }
-
-
 
 //========================================================================
 // Helper functions
 //========================================================================
 
-// Function to print horizontal line of a char
-void printHline(char lineChar)
-{
-  for (int i = 0; i < 72; ++i)
-  {
-    Serial.print(lineChar);
-  }
-
-  Serial.println();
-}
-
-// Function to quicly call actions required to prep screen for printing
+// Function to quickly call actions required to prep screen for printing
 void displayPrep(void)
 {
     display.clearDisplay();
@@ -260,6 +255,50 @@ void goToMainMenu(void)
   ebState = 0;
 }
 
+void infoScreen(void)
+{
+  eb1.update();
+  displayPrep();
+
+  // Naive way of identifying whinc menu we are in 
+  if (CurrentMenuPtr[0].menuTextPtr == "9G Servo Test")
+  {
+    switch(clickedItemNumber)
+    {
+      case 2: // esr
+      {
+
+      }
+      case 3: // nRF
+      {
+
+      }
+      case 4: // L298H
+      {
+
+      }
+      case 5: // Ultrasonic
+      {
+
+      }
+    }
+
+  }
+  else if (CurrentMenuPtr[0].menuTextPtr == "Manual Servo Test")
+  {
+    switch(clickedItemNumber)
+    {
+      case 1: // Manual
+      {
+
+      }
+      case 2: // Auto
+      {
+
+      }
+    }
+  }
+}
 // Function to set selection action when button pressed
 // Currently only accepts void argument functions!
 void setSelectionActions(void)
@@ -269,6 +308,30 @@ void setSelectionActions(void)
 
   ServoMenu[2].selectionAction = goToMainMenu;
   //...
+}
+
+
+static const char *confirmOptions[3] = {"OK", "|", "Back"};
+static const size_t confirmOptionLen = sizeof(confirmOptions) / sizeof(confirmOptions[0]);
+
+// Reusable function for printing the confirmOptions above
+void printConfirmOptions(void)
+{
+  for (size_t i = 0; i < confirmOptionLen; i++)
+  {
+     // Highlight line if user is hovering over it
+     // Don't highlight the bar though
+      if (ebState == i && i != 1)
+      {
+        display.setTextColor(SSD1306_BLACK, SSD1306_WHITE); // Draw 'inverse' text
+      }
+      else 
+      {
+        display.setTextColor(SSD1306_WHITE, SSD1306_BLACK); 
+      }
+       
+       display.print(confirmOptions[i]);
+  }
 }
 
 //========================================================================
@@ -307,7 +370,7 @@ void displayMenuDriver(void)
   // Condition for executing users selections based on 'clicked' bool
   if (clicked)
   {
-    Serial.print("Entered displayMenu clicked case: ");
+    clickedItemNumber = CurrentMenuPtr[ebState].choice;
     resetClicked(); // Reset before proceeding to function
     CurrentMenuPtr[ebState].selectionAction();
   }
@@ -348,29 +411,6 @@ void displayMenuDriver(void)
 //========================================================================
 // Functions for debugging
 //========================================================================
-
-static const char *confirmOptions[3] = {"OK", "|", "Back"};
-static const size_t confirmOptionLen = sizeof(confirmOptions) / sizeof(confirmOptions[0]);
-
-// Reusable function for printing the confirmOptions above
-void printConfirmOptions(void)
-{
-  for (size_t i = 0; i < confirmOptionLen; i++)
-  {
-     // Highlight line if user is hovering over it
-     // Don't highlight the bar though
-      if (ebState == i && i != 1)
-      {
-        display.setTextColor(SSD1306_BLACK, SSD1306_WHITE); // Draw 'inverse' text
-      }
-      else 
-      {
-        display.setTextColor(SSD1306_WHITE, SSD1306_BLACK); 
-      }
-       
-       display.print(confirmOptions[i]);
-  }
-}
 
 void dummyInfo(void)
 {
